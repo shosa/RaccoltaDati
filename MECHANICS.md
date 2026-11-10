@@ -107,6 +107,13 @@ none was taken from memory of other programs.
   version 10.11.1.0 → `%APPDATA%\Esprit\Raccolta dati\10.11.1.0\logRaccoltaDati.txt` (named in
   LEGGIMI.txt). Native check: `native_strings_find "WriteException|Finalizze|.log|
   ExceptionHandler"` → 0 (ev_1a2136c12deb…); Ghidra entry 0x6f0eea = `_CorExeMain` jump.
+- Version of the original: native `native_strings_find "10.11.1|FileVersion|ProductVersion"` →
+  5 matches in `.rsrc` (ev_4c11fa078a91…): FileVersion "10.11.1.0" at 0x6f25a8, ProductVersion
+  "10.11.1.0" at 0x6f2700 (also AssemblyVersion 10.11.1.0 in IL). Every rule here was read from
+  that version, and saves run on the original's libraries of the PC in use, so the launcher
+  reads `RD_LIBDIR\Raccolta dati.exe`'s VS_FIXEDFILEINFO (GetFileVersionInfoW) and logs
+  "stessa versione" or **ATTENZIONE … verificare i salvataggi** when it differs, or "non
+  trovato" when missing.
 - One copy at a time: `%LOCALAPPDATA%\RaccoltaDati\istanza.lock` kept open without sharing; a
   second launch brings the open window to the front and exits (RIAVVIA and the automatic
   restart wait up to 10 s for the old copy to close). `--screenshot` runs are exempt.

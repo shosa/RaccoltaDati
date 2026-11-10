@@ -175,6 +175,42 @@ fn net_framework() -> Option<u32> {
     (r == 0).then_some(dato)
 }
 
+#[link(name = "version")]
+unsafe extern "system" {
+    fn GetFileVersionInfoSizeW(file: *const u16, handle: *mut u32) -> u32;
+    fn GetFileVersionInfoW(file: *const u16, handle: u32, len: u32, data: *mut u8) -> i32;
+    fn VerQueryValueW(block: *const u8, sub: *const u16, buf: *mut *const u8, len: *mut u32) -> i32;
+}
+
+/// The version every rule of this rebuild was read from: the original's version resource,
+/// FileVersion / ProductVersion "10.11.1.0" (Raccolta dati.exe .rsrc 0x6f25a8 / 0x6f2700).
+const VERSIONE_ORIGINALE: &str = "10.11.1.0";
+
+/// FileVersion (VS_FIXEDFILEINFO) of the original installed on this PC.
+fn versione_file(percorso: &std::path::Path) -> Option<String> {
+    let w: Vec<u16> = percorso.as_os_str().to_string_lossy().encode_utf16().chain(std::iter::once(0)).collect();
+    unsafe {
+        let mut h = 0u32;
+        let n = GetFileVersionInfoSizeW(w.as_ptr(), &mut h);
+        if n == 0 {
+            return None;
+        }
+        let mut buf = vec![0u8; n as usize];
+        if GetFileVersionInfoW(w.as_ptr(), 0, n, buf.as_mut_ptr()) == 0 {
+            return None;
+        }
+        let radice: Vec<u16> = "\\".encode_utf16().chain(std::iter::once(0)).collect();
+        let (mut p, mut l) = (std::ptr::null::<u8>(), 0u32);
+        if VerQueryValueW(buf.as_ptr(), radice.as_ptr(), &mut p, &mut l) == 0 || p.is_null() || l < 52 {
+            return None;
+        }
+        // VS_FIXEDFILEINFO: dwFileVersionMS at byte 8, dwFileVersionLS at byte 12
+        let ms = u32::from_le_bytes([*p.add(8), *p.add(9), *p.add(10), *p.add(11)]);
+        let ls = u32::from_le_bytes([*p.add(12), *p.add(13), *p.add(14), *p.add(15)]);
+        Some(format!("{}.{}.{}.{}", ms >> 16, ms & 0xFFFF, ls >> 16, ls & 0xFFFF))
+    }
+}
+
 /// What a Windows exit code says about how the app ended.
 fn spiega_codice(c: u32) -> &'static str {
     match c {
@@ -207,6 +243,15 @@ fn lanciatore() {
         Some(r) if r >= NET_462 => format!(".NET Framework ok (release {r}, richiesto 4.6.2 = {NET_462})"),
         Some(r) => format!(".NET Framework troppo vecchio (release {r}): il modulo di salvataggio richiede 4.6.2 = {NET_462}"),
         None => ".NET Framework 4.x non trovato: il modulo di salvataggio richiede 4.6.2".to_string(),
+    });
+    // saves go through the original's libraries installed here (RD_LIBDIR, as the app)
+    let cartella = std::env::var("RD_LIBDIR").unwrap_or_else(|_| r"C:\Esprit\Raccolta Dati".to_string());
+    avvio::log(&match versione_file(&std::path::Path::new(&cartella).join("Raccolta dati.exe")) {
+        Some(v) if v == VERSIONE_ORIGINALE => format!("Raccolta Dati originale {v}: la stessa versione su cui è costruita questa app"),
+        Some(v) => format!(
+            "ATTENZIONE: Raccolta Dati originale {v} su questo PC, l'app è costruita sulla {VERSIONE_ORIGINALE}: verificare i salvataggi"
+        ),
+        None => format!("Raccolta Dati originale non trovato in {cartella}: i salvataggi non funzioneranno"),
     });
     let mut modo = modo_grafico();
     let mut ultimo = String::new();
