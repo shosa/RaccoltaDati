@@ -1,0 +1,5 @@
+# The GNU Rust toolchain on this machine ships dlltool without an assembler, so
+# point rustc at the full MinGW binutils from WinLibs (installed with winget),
+# whose dlltool finds its own `as` next to it.
+[target.x86_64-pc-windows-gnu]
+rustflags = ["-C", "dlltool=C:/Users/StefanoSolidoro/AppData/Local/Microsoft/WinGet/Packages/BrechtSanders.WinLibs.POSIX.MSVCRT_Microsoft.Winget.Source_8wekyb3d8bbwe/mingw64/bin/dlltool.exe"]
