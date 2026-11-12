@@ -1,0 +1,44 @@
+﻿RACCOLTA DATI - PACCHETTO WINDOWS
+=================================
+
+CONTENUTO
+- RaccoltaDati.exe: applicazione per Windows x64 (versione del 10/11/2026).
+- RdPonte.exe: modulo che registra le operazioni tramite le librerie Esprit originali.
+
+INSTALLAZIONE SUL PC OPERATIVO
+1. Chiudi Raccolta Dati se è aperto.
+2. Copia RaccoltaDati.exe e RdPonte.exe nella stessa cartella, sostituendo quelli vecchi
+   (ad esempio C:\Esprit\ o C:\RaccoltaDati\). Devono stare sempre insieme.
+3. Il programma originale deve essere presente in C:\Esprit\Raccolta Dati\
+   (con RD.Logic.dll e le altre DLL originali: non sono incluse in questo pacchetto).
+4. C:\Esprit\Esprit.ini resta quello del PC operativo: NON va copiato da qui.
+   Le impostazioni si possono cambiare dal pulsante IMPOSTAZIONI nella schermata di accesso.
+5. Avvia RaccoltaDati.exe (puoi creare un collegamento sul desktop).
+
+PRIMO AVVIO E GRAFICA (versione delle 12:40 del 10/11/2026)
+- Basta UN clic. RaccoltaDati.exe avvia l'applicazione e la sorveglia: se la finestra non
+  compare entro 12 secondi, oppure l'applicazione si chiude da sola (driver grafico,
+  antivirus...), la riavvia in automatico con un'altra grafica (DirectX 12, OpenGL, Vulkan,
+  infine "software", che non usa il driver della scheda video), fino a 8 tentativi.
+  Non cliccare di nuovo: attendi fino a circa un minuto.
+- In Gestione attività si vedono due "RaccoltaDati.exe": è normale (avvio + applicazione).
+- La modalità che funziona viene ricordata in %LOCALAPPDATA%\RaccoltaDati\grafica.txt e
+  usata subito dagli avvii successivi.
+- Si apre una sola copia: un secondo clic porta in primo piano quella già aperta.
+
+SE QUALCOSA NON VA
+- Il registro di avvio è in %LOCALAPPDATA%\RaccoltaDati\avvio.log: inviarlo a chi
+  segue il programma (indica tentativi, modalità grafica e ogni errore).
+- Il programma originale scrive i suoi errori in
+  %APPDATA%\Esprit\Raccolta dati\10.11.1.0\logRaccoltaDati.txt: utile allegarlo se il
+  problema riguarda il salvataggio.
+- Se il modulo di salvataggio non viene trovato, controlla che RdPonte.exe sia accanto a
+  RaccoltaDati.exe e che C:\Esprit\Raccolta Dati\ contenga le DLL originali.
+- Per forzare una modalità grafica si può cancellare grafica.txt o scriverci dentro una
+  di queste parole: dx12, opengl, vulkan, software.
+
+REQUISITI
+- Windows 10/11 a 64 bit.
+- Rete aziendale e server SQL raggiungibili.
+- Programma Esprit originale e DLL nella cartella indicata sopra.
+- .NET Framework 4.6.2 o successivo per il modulo di salvataggio (di norma già presente).

@@ -2,11 +2,29 @@
 
 A rebuild of Esprit's **Raccolta dati** (version 10.11.1.0) for touch monitors on the shop floor:
 same database, same rules, same records, with a bright touch UI and a few new automations
-(barcode flow, multi-order batch, INFO COMMESSA). Written in Rust (eframe/egui 0.37).
+(barcode flow, multi-order batch, INFO COMMESSA, day's records). Written in Rust (eframe/egui 0.37).
 
 - **Operators:** see [GUIDA-OPERATORE.md](GUIDA-OPERATORE.md) (Italian).
 - **Every rule and where it comes from in the original:** [MECHANICS.md](MECHANICS.md).
 - **Values with sources:** [mechanics.json](mechanics.json).
+- **What changed, version by version:** [CHANGELOG.md](CHANGELOG.md).
+- **Installation notes shipped with the package:** [packaging/LEGGIMI.txt](packaging/LEGGIMI.txt).
+
+---
+
+## 0. What it does
+
+| Area | Screen / control | Notes |
+|---|---|---|
+| Access | Login card (**ACCEDI**), letters-and-digits keyboard | No data, tabs or barcode before an operator logs in; an open shift is resumed |
+| Operators | **OPERATORI**: INIZIA TURNO, FINE TURNO | Fine turno locks the app again |
+| Machines | **MACCHINE**: cards, PRENDI MACCHINA, ▲▼ and finger scroll | Only the machines of Esprit.ini `MACCHINE` |
+| Orders | **COMMESSE** › COMMESSE / FASI / ARTICOLI | INIZIA, SOSPENDI, TERMINA, filter; phases INIZIA/SOSPENDI/TERMINA/UTILIZZA FASE; VERSA PEZZI, PEZZI REGISTRATI |
+| Day's records | **VERSAMENTI** | VF/VS of a day on the workstation's machines, totals, "solo i miei", previous/next day |
+| Lookup | **INFO COMMESSA** (teal search button) | Which machine of this workstation an order is on; reads only |
+| Barcode | **BARCODE** (orange) | Reader on only while its window is open; automatic flow; **PIÙ COMMESSE** batch |
+| Settings | **IMPOSTAZIONI** on the login screen | Esprit.ini editor with backup; full screen (also F11) |
+| Exit | Exit button / window X | Ends the shifts started on this PC and releases their machines |
 
 ---
 
@@ -38,7 +56,7 @@ purpose: the database rows are produced by Esprit's code, not by a re-implementa
 | `src/ponte.rs` | Talks to `RdPonte.exe` over stdin/stdout |
 | `src/theme.rs`, `src/ui.rs` | Colours, fonts, Phosphor icons, touch tiles, cards |
 | `src/app.rs` | App state, login lock, tabs, header, saving, exit/logout |
-| `src/app/schermi.rs` | The screens (machines, operators, orders, phases, pieces, articles) |
+| `src/app/schermi.rs` | The screens (machines, operators, orders, phases, pieces, articles, VERSAMENTI) |
 | `src/app/dialoghi.rs` | Dialogs, keyboards, quantity screen, barcode window, INFO result |
 | `src/app/rapido.rs` | Automatic barcode flow (one order) |
 | `src/app/lotto.rs` | PIÙ COMMESSE batch (many orders, one run per R order) |
@@ -69,9 +87,14 @@ The bridge ends up in `bridge/out/RdPonte.exe`.
 
 ### Package for a work PC
 
-Copy `target/release/raccolta_dati.exe` as `RaccoltaDati.exe` and `bridge/out/RdPonte.exe`
-**into the same folder**, add `LEGGIMI.txt`. The project's `pacchetto/` folder holds the
-current one. Never ship `Esprit.ini` (credentials) or the original DLLs (already on the PC).
+1. `cargo test` and `cargo build --release`.
+2. Quick check: `target\release\raccolta_dati.exe --sola-lettura`, then read the new lines of
+   `%LOCALAPPDATA%\RaccoltaDati\avvio.log` (window opened, save module ok).
+3. Into one folder copy `target/release/raccolta_dati.exe` **renamed `RaccoltaDati.exe`**,
+   `bridge/out/RdPonte.exe`, `packaging/LEGGIMI.txt` and `GUIDA-OPERATORE.md`; zip it.
+4. On the work PC: close the app, replace the two programs (always side by side), click once.
+
+Never ship `Esprit.ini` (credentials) or the original DLLs (already on the PC).
 
 ---
 
@@ -178,8 +201,20 @@ Machine state is `RD_MACCHINE` (operator, order, phase in use); shifts are `RD_T
 
 **Differences on purpose** (listed in MECHANICS.md): login gate before any data; operator login
 with letters; closing the app logs out the operators of this PC; no machine pre-selected; DATI
-tab removed; barcode window, automatic flow, PIÙ COMMESSE, INFO COMMESSA; settings editor;
-launcher with graphics fallback.
+tab removed; ARTICOLI moved under COMMESSE and VERSAMENTI in its place; barcode window, automatic
+flow, PIÙ COMMESSE, INFO COMMESSA; settings editor; launcher with graphics fallback; flat look.
+
+---
+
+## 5b. Working on the code
+
+- Read the rule in MECHANICS.md before changing behaviour; when a rule comes from the original,
+  write its method and address next to the code and in MECHANICS.md.
+- Keep every write going through `RdPonte.exe` (add a command to `bridge/Azioni.cs`, call it
+  with `ponte.call`); never write to the database from Rust.
+- Test against the real database with `--sola-lettura` and the test options; screenshots with
+  `--screenshot` are always read-only.
+- UI strings are Italian; code comments English.
 
 ---
 
