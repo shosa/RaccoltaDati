@@ -458,6 +458,15 @@ Open shifts: RD_TURNI ⨝ Users where RD_ORAFIN is null; time shown "HH:mm"; fil
   GIORNO DOPO › (never past today); opening the tab shows today; it reloads after a save.
 - Same rows as the original's "Pezzi registrati" (`RefreshPezzi` 0x22420), across all orders
   and phases of the day instead of the phase in use. Test: `--scheda versamenti`.
+- IL check: `RefreshPezzi` builds a `DatiProdFilter { TipoComme "S", Commessa, Macchina,
+  ProgrFase, LOperazione = [VF or VS] }` and calls RD.Dal.MSSql `DatoProduzioneDal::ListByFilter`
+  (0x7e40): `SELECT * FROM PD_DATIPROD WHERE PD_IDAZIENDA = @… AND (PD_CODOPE IS NULL OR PD_CODOPE
+  <> 'SPC')` + `AggiungiFiltri` (0x7f78: `PD_DATA >= @PD_DATADA`, `<= @PD_DATAA`, PD_CODDIP and
+  PD_MACCHINA ranges, `PD_TIPOCOM`, `PD_ANNOCOMRAG/PD_NUMCOMRAG` for an R order) `ORDER BY
+  PD_DATA, PD_ORAINIZ, PD_PROGR`. No filter on cancelled or extra-cycle rows. The VERSAMENTI
+  query uses the same SPC exclusion and the PD_PROGR tie-break (newest first). Native check:
+  `native_strings_find "PD_DATIPROD|PD_NPEZZI|PD_EXTRACICLO|Pezzi registrati"` → 0
+  (ev_239c8a2dc12f…); Ghidra entry 0x6f0eea = `_CorExeMain` jump (ev_c6fec7dac3c3…).
 
 ## New: INFO COMMESSA (person's request) — reads only
 - Purpose (person): know **which machine of this workstation** an order number is on.

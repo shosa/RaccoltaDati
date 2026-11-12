@@ -1280,7 +1280,11 @@ pub struct VersamentoGiorno {
 
 /// PD_DATIPROD rows of the day with the output operations (VF on the last production
 /// phase, VS on the others: RaccoltaDatiHelper.GetCodOperazioneVersamenti 0x4a624),
-/// single orders, on these machines; newest first.
+/// single orders, on these machines; newest first. Same base and filters as the original's
+/// list: RD.Dal.MSSql DatoProduzioneDal::ListByFilter (0x7e40) — `PD_IDAZIENDA`, `PD_CODOPE IS
+/// NULL OR <> 'SPC'`, AggiungiFiltri (0x7f78) `PD_DATA >= DataDa`, `PD_MACCHINA`, `PD_TIPOCOM`,
+/// operations; no filter on cancelled or extra-cycle rows; ordered by PD_DATA, PD_ORAINIZ,
+/// PD_PROGR (here reversed).
 pub async fn versamenti_giorno(db: &Db, az: &str, setup: &Setup, giorno: NaiveDate, macchine: &[String]) -> Result<Vec<VersamentoGiorno>, String> {
     if macchine.is_empty() {
         return Ok(Vec::new());
@@ -1300,9 +1304,10 @@ pub async fn versamenti_giorno(db: &Db, az: &str, setup: &Setup, giorno: NaiveDa
          FROM PD_DATIPROD P
          LEFT JOIN Users U ON U.USERNAME = P.PD_CODDIP AND U.IDAZIENDA = P.PD_IDAZIENDA
          LEFT JOIN MG_ARTICOLI A ON A.MG_CODI = P.PD_CODART AND A.MG_IDAZIENDA = P.PD_IDAZIENDA
-         WHERE P.PD_IDAZIENDA = {p_az} AND (P.PD_CODOPE = {p_vf} OR P.PD_CODOPE = {p_vs}) AND P.PD_TIPOCOM = 'S'
+         WHERE P.PD_IDAZIENDA = {p_az} AND (P.PD_CODOPE IS NULL OR P.PD_CODOPE <> 'SPC')
+           AND (P.PD_CODOPE = {p_vf} OR P.PD_CODOPE = {p_vs}) AND P.PD_TIPOCOM = 'S'
            AND P.PD_DATA >= {p_da} AND P.PD_DATA < {p_a} AND P.PD_MACCHINA IN ({in_mac})
-         ORDER BY P.PD_DATA DESC, P.PD_ORAINIZ DESC"
+         ORDER BY P.PD_DATA DESC, P.PD_ORAINIZ DESC, P.PD_PROGR DESC"
     );
     let t = db.query(s).await?;
     Ok(t.rows
