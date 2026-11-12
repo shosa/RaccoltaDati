@@ -445,6 +445,20 @@ Open shifts: RD_TURNI ⨝ Users where RD_ORAFIN is null; time shown "HH:mm"; fil
   `--lotto c1,c2,…` (with `--operatore`, `--macchina`).
 - Not yet tried on a real save (the save path is the single flow's, with several rows).
 
+## New: VERSAMENTI tab (person's request) — reads only
+- Takes ARTICOLI's place in the tab row; ARTICOLI is now the third sub-tab of COMMESSE
+  (COMMESSE · FASI · ARTICOLI; `Tab::gruppo` maps Fasi/Produzione/Articoli to Commesse).
+- Shows what was recorded in one day (`dati::versamenti_giorno`): PD_DATIPROD rows with the
+  output operations VF/VS (`RaccoltaDatiHelper::GetCodOperazioneVersamenti` 0x4a624; MG "VF"/"VS"
+  from CN_SETUP), PD_TIPOCOM 'S', `PD_DATA` within the day, PD_MACCHINA among the workstation's
+  machines (Esprit.ini MACCHINE); newest first, at most 2000. With operator name (Users), article
+  (MG_ARTICOLI: unit, decimals) and phase description (PD_FASI of the group order R).
+- Summary: pieces, records, distinct orders, pieces per machine. Rows of the logged-in operator
+  are green; SOLO I MIEI / TUTTA LA POSTAZIONE switches the filter; ‹ GIORNO PRIMA / OGGI /
+  GIORNO DOPO › (never past today); opening the tab shows today; it reloads after a save.
+- Same rows as the original's "Pezzi registrati" (`RefreshPezzi` 0x22420), across all orders
+  and phases of the day instead of the phase in use. Test: `--scheda versamenti`.
+
 ## New: INFO COMMESSA (person's request) — reads only
 - Purpose (person): know **which machine of this workstation** an order number is on.
 - Workstation machines = the same list the app shows (`dati::macchine`): Esprit.ini MACCHINE

@@ -448,6 +448,8 @@ pub enum Tab {
     Fasi,
     Produzione,
     Articoli,
+    /// What was recorded today on the workstation's machines.
+    Versamenti,
 }
 
 impl Tab {
@@ -459,13 +461,15 @@ impl Tab {
             "fasi" => Tab::Fasi,
             "produzione" | "pezzi" => Tab::Produzione,
             "articoli" => Tab::Articoli,
+            "versamenti" => Tab::Versamenti,
             _ => return None,
         })
     }
 }
 
-/// Main tabs, in the person's order. COMMESSE groups the order list and the
-/// phases (two sub-tabs); the recorded quantities open from the phases.
+/// Main tabs, in the person's order. COMMESSE groups the order list, the phases and
+/// the articles (three sub-tabs); the recorded quantities open from the phases.
+/// VERSAMENTI (person's request) took ARTICOLI's place: what was recorded in the day.
 /// The last slot of the row is the BARCODE button (no tab). The original's machine-data
 /// tab (CaricaGridDatiMacchine 0x24ed0, read-only; its 2000 ms timer 0x25104 refreshes only
 /// that tab) was removed on request, so nothing else depends on it.
@@ -473,14 +477,14 @@ const TABS: [(Tab, Icon, &str); 4] = [
     (Tab::Operatori, Icon::Person, "OPERATORI"),
     (Tab::Macchine, Icon::Factory, "MACCHINE"),
     (Tab::Commesse, Icon::Layers, "COMMESSE"),
-    (Tab::Articoli, Icon::Tag, "ARTICOLI"),
+    (Tab::Versamenti, Icon::Cube, "VERSAMENTI"),
 ];
 
 impl Tab {
     /// The main tab a screen belongs to.
     fn gruppo(self) -> Tab {
         match self {
-            Tab::Fasi | Tab::Produzione => Tab::Commesse,
+            Tab::Fasi | Tab::Produzione | Tab::Articoli => Tab::Commesse,
             t => t,
         }
     }
@@ -629,6 +633,11 @@ pub struct Main {
     sel_fase: Option<i64>,
     versati: Loader<(bool, Vec<Versato>)>,
     articoli: Loader<Vec<RigaArticolo>>,
+    /// VERSAMENTI tab: the day shown, its records, and "only mine" filter.
+    giorno: chrono::NaiveDate,
+    vers_giorno: Loader<Vec<dati::VersamentoGiorno>>,
+    solo_miei: bool,
+    sc_vers: schermi::Scorri,
     azione: Option<Azione>,
     dialoghi: Vec<Dialogo>,
     avviso: Option<(String, Instant, bool)>,
@@ -699,6 +708,10 @@ impl Main {
             sel_fase: None,
             versati: Loader::default(),
             articoli: Loader::default(),
+            giorno: Local::now().date_naive(),
+            vers_giorno: Loader::default(),
+            solo_miei: false,
+            sc_vers: Default::default(),
             azione: None,
             dialoghi: Vec::new(),
             avviso: None,
@@ -837,6 +850,9 @@ impl Main {
         self.carica_macchine();
         self.carica_ambiente();
         self.carica_turni();
+        if self.tab == Tab::Versamenti {
+            self.carica_vers_giorno();
+        }
         self.aggiornato = Local::now().naive_local();
     }
 
@@ -888,6 +904,13 @@ impl Main {
         let Some(amb) = self.amb.value.clone() else { return };
         let (db, az) = (self.db.clone(), self.az.clone());
         self.articoli.start(self.db.spawn(async move { dati::articoli_commessa(&db, &az, &amb).await }));
+    }
+
+    /// VERSAMENTI: the day's records on the workstation's machines (Esprit.ini MACCHINE).
+    fn carica_vers_giorno(&mut self) {
+        let macchine: Vec<String> = self.macchine.value.as_ref().map(|v| v.iter().map(|m| m.cod.clone()).collect()).unwrap_or_default();
+        let (db, az, setup, giorno) = (self.db.clone(), self.az.clone(), self.setup.clone(), self.giorno);
+        self.vers_giorno.start(self.db.spawn(async move { dati::versamenti_giorno(&db, &az, &setup, giorno, &macchine).await }));
     }
 
     fn avvisa(&mut self, t: impl Into<String>, errore: bool) {
@@ -1082,6 +1105,9 @@ impl Main {
                 // (MostraMascheraVersamento 0x2228c -> RefreshPezzi 0x22420) — one query
                 // instead of the whole screen, which matters on a slow network.
                 self.carica_versati();
+                if self.tab == Tab::Versamenti {
+                    self.carica_vers_giorno();
+                }
             }
             Dopo::Ricarica => {
                 if !msg.is_empty() {
@@ -1334,6 +1360,11 @@ impl Main {
         }
         self.versati.poll();
         self.articoli.poll();
+        if self.vers_giorno.poll() {
+            if let Some(e) = self.vers_giorno.error.clone() {
+                self.avvisa(e, true);
+            }
+        }
     }
 
     fn ui(&mut self, ui: &mut Ui) {
@@ -1448,6 +1479,7 @@ impl Main {
                 Tab::Fasi => self.vista_fasi(ui),
                 Tab::Produzione => self.vista_produzione(ui),
                 Tab::Articoli => self.vista_articoli(ui),
+                Tab::Versamenti => self.vista_versamenti(ui),
                 }
             });
 
@@ -1536,6 +1568,11 @@ impl Main {
                     Tab::Fasi => self.carica_ambiente(),
                     Tab::Produzione => self.carica_versati(),
                     Tab::Articoli => self.carica_articoli(),
+                    Tab::Versamenti => {
+                        // opening the tab shows today again
+                        self.giorno = Local::now().date_naive();
+                        self.carica_vers_giorno();
+                    }
                 }
             }
         }

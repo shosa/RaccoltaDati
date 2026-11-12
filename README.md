@@ -34,7 +34,7 @@ purpose: the database rows are produced by Esprit's code, not by a re-implementa
 | `src/avvio.rs` | Start-up steps, splash screen, `avvio.log` |
 | `src/config.rs` | `Esprit.ini` reader, `[Raccolta dati]` workstation settings |
 | `src/db.rs` | SQL Server pool, query builder (`Sql`, `@P` params), `Loader`/`Task` |
-| `src/dati.rs` | All queries: machines, shifts, orders, phases, quantities, barcode search, INFO |
+| `src/dati.rs` | All queries: machines, shifts, orders, phases, quantities, day's records, barcode search, INFO |
 | `src/ponte.rs` | Talks to `RdPonte.exe` over stdin/stdout |
 | `src/theme.rs`, `src/ui.rs` | Colours, fonts, Phosphor icons, touch tiles, cards |
 | `src/app.rs` | App state, login lock, tabs, header, saving, exit/logout |
@@ -87,7 +87,7 @@ The app reads `C:\Esprit\Esprit.ini` (or `--ini <path>`, or `RACCOLTA_DATI_INI`)
 | `--screenshot <file.png>` | Draws ~120 frames, waits for data, saves a picture, exits (always read-only) |
 | `--operatore <cod>` | Starts as if that operator had logged in (read-only runs only) |
 | `--macchina <cod>` | Pre-selects a machine |
-| `--scheda <nome>` | Opens a tab: `operatori`, `macchine`, `commesse`, `fasi`, `produzione`, `articoli` |
+| `--scheda <nome>` | Opens a tab: `operatori`, `macchine`, `commesse`, `fasi`, `produzione`, `articoli`, `versamenti` |
 | `--accesso` | Opens the operator login keyboard |
 | `--barcode` | Opens the barcode window |
 | `--scansiona <code>` | Simulates a scan (with `--versa`: in the quantity screen) |

@@ -1258,6 +1258,82 @@ pub async fn fasi(db: &Db, az: &str, setup: &Setup, amb: &Ambiente, mac: &str, i
 }
 
 // ---------------------------------------------------------------------------
+// VERSAMENTI: what was recorded in one day on the workstation's machines (reads only)
+
+#[derive(Clone, Debug)]
+pub struct VersamentoGiorno {
+    pub quando: Option<NaiveDateTime>,
+    pub macchina: String,
+    pub cod_dip: String,
+    pub operatore: String,
+    pub commessa: String,
+    pub gruppo: String,
+    pub fase: i64,
+    pub fase_descr: String,
+    pub operazione: String,
+    pub codart: String,
+    pub descr: String,
+    pub qta: f64,
+    pub um: String,
+    pub ndec: usize,
+}
+
+/// PD_DATIPROD rows of the day with the output operations (VF on the last production
+/// phase, VS on the others: RaccoltaDatiHelper.GetCodOperazioneVersamenti 0x4a624),
+/// single orders, on these machines; newest first.
+pub async fn versamenti_giorno(db: &Db, az: &str, setup: &Setup, giorno: NaiveDate, macchine: &[String]) -> Result<Vec<VersamentoGiorno>, String> {
+    if macchine.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut s = Sql::new("");
+    let p_az = s.arg(az);
+    let p_vf = s.arg(setup.vf.as_str());
+    let p_vs = s.arg(setup.vs.as_str());
+    let p_da = s.arg(Param::Date(giorno));
+    let p_a = s.arg(Param::Date(giorno.succ_opt().unwrap_or(giorno)));
+    let in_mac = macchine.iter().map(|m| s.arg(m.as_str())).collect::<Vec<_>>().join(",");
+    s.text = format!(
+        "SELECT TOP 2000 P.PD_ORAINIZ, P.PD_DATA, P.PD_MACCHINA, P.PD_CODDIP, U.NOME, P.PD_ANNOCOM, P.PD_COMMESSA, P.PD_ANNOCOMRAG, P.PD_NUMCOMRAG,
+           P.PD_FASE, P.PD_CODOPE, P.PD_CODART, P.PD_NPEZZI, A.MG_DESC, A.MG_UNMIS, A.DECIMALIQTA,
+           (SELECT TOP 1 F.PD_DESFAS FROM PD_FASI F WHERE F.PD_IDAZIENDA = P.PD_IDAZIENDA AND F.PD_ANNOCOM = P.PD_ANNOCOMRAG
+              AND F.PD_NUMCOM = P.PD_NUMCOMRAG AND F.PD_TIPOCOM = 'R' AND F.PD_PROGR = P.PD_FASE) AS FASE_DESCR
+         FROM PD_DATIPROD P
+         LEFT JOIN Users U ON U.USERNAME = P.PD_CODDIP AND U.IDAZIENDA = P.PD_IDAZIENDA
+         LEFT JOIN MG_ARTICOLI A ON A.MG_CODI = P.PD_CODART AND A.MG_IDAZIENDA = P.PD_IDAZIENDA
+         WHERE P.PD_IDAZIENDA = {p_az} AND (P.PD_CODOPE = {p_vf} OR P.PD_CODOPE = {p_vs}) AND P.PD_TIPOCOM = 'S'
+           AND P.PD_DATA >= {p_da} AND P.PD_DATA < {p_a} AND P.PD_MACCHINA IN ({in_mac})
+         ORDER BY P.PD_DATA DESC, P.PD_ORAINIZ DESC"
+    );
+    let t = db.query(s).await?;
+    Ok(t.rows
+        .iter()
+        .map(|r| {
+            let ndec = t.get(r, "DECIMALIQTA").i64().map(|d| d as usize).unwrap_or(setup.ndec);
+            let quando = match (t.get(r, "PD_ORAINIZ"), t.get(r, "PD_DATA")) {
+                (Cell::DateTime(d), _) | (_, Cell::DateTime(d)) => Some(*d),
+                _ => None,
+            };
+            VersamentoGiorno {
+                quando,
+                macchina: t.s(r, "PD_MACCHINA").trim().to_string(),
+                cod_dip: t.s(r, "PD_CODDIP").trim().to_string(),
+                operatore: t.s(r, "NOME").trim().to_string(),
+                commessa: format!("{}-{}", t.s(r, "PD_ANNOCOM"), t.s(r, "PD_COMMESSA")),
+                gruppo: format!("{}-{}", t.s(r, "PD_ANNOCOMRAG"), t.s(r, "PD_NUMCOMRAG")),
+                fase: cell_i(t.get(r, "PD_FASE")),
+                fase_descr: t.s(r, "FASE_DESCR").trim().to_string(),
+                operazione: t.s(r, "PD_CODOPE").trim().to_string(),
+                codart: t.s(r, "PD_CODART").trim().to_string(),
+                descr: t.s(r, "MG_DESC").trim().to_string(),
+                qta: cell_f(t.get(r, "PD_NPEZZI")),
+                um: t.s(r, "MG_UNMIS").trim().to_string(),
+                ndec,
+            }
+        })
+        .collect())
+}
+
+// ---------------------------------------------------------------------------
 // Recorded quantities (RefreshPezzi)
 
 #[derive(Clone, Debug)]

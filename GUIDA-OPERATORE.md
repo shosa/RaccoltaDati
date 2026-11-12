@@ -35,8 +35,8 @@ indica una macchina con una commessa in lavorazione, quello rosso una macchina l
 
 ## 4. Il lavoro normale
 
-Le schede in alto sono: **OPERATORI**, **MACCHINE**, **COMMESSE** (con le sotto-schede COMMESSE e
-FASI), **ARTICOLI**, il pulsante verde-acqua con la **lente** (INFO COMMESSA) e il pulsante
+Le schede in alto sono: **OPERATORI**, **MACCHINE**, **COMMESSE** (con le sotto-schede COMMESSE,
+FASI e ARTICOLI), **VERSAMENTI**, il pulsante verde-acqua con la **lente** (INFO COMMESSA) e il pulsante
 arancione **BARCODE**.
 
 **Commesse.** Tocca una commessa e premi **INIZIA** per avviarla sulla macchina. **SOSPENDI**
@@ -50,6 +50,12 @@ operatori: correggi se serve e **CONFERMA**.
 **Versare i pezzi.** Da **FASI** premi **VERSA PEZZI**: compare l'elenco delle commesse della fase
 con quanto resta da fare. Tocca la casella della quantità e scrivi i pezzi, oppure **VERSA TUTTO**,
 poi **CONFERMA**. **PEZZI REGISTRATI** mostra cosa è già stato versato.
+
+**Versamenti della giornata.** La scheda **VERSAMENTI** mostra tutto quello che è stato versato
+oggi sulle macchine della postazione: ora, macchina, operatore, commessa, articolo, fase e
+quantità, con in alto i totali (pezzi, registrazioni, commesse, pezzi per macchina). Le tue righe
+sono in verde; **SOLO I MIEI** mostra solo le tue. Con **‹ GIORNO PRIMA**, **OGGI** e
+**GIORNO DOPO ›** puoi guardare gli altri giorni. Non registra nulla.
 
 ## 5. BARCODE — versamento automatico
 

@@ -52,11 +52,12 @@ impl Main {
     /// Sub-tabs of COMMESSE: the order list and the phases of the running order.
     pub(super) fn sotto_schede(&mut self, ui: &mut Ui) {
         let (row, _) = ui.allocate_exact_size(vec2(ui.available_width(), 50.0), Sense::hover());
-        let seg = Rect::from_min_size(row.left_top() + vec2(0.0, 2.0), vec2(460.0, 42.0));
+        let seg = Rect::from_min_size(row.left_top() + vec2(0.0, 2.0), vec2(690.0, 42.0));
         let p = ui.painter().clone();
         p.rect_filled(seg, 21.0, CARD_SOFT);
         p.rect_stroke(seg, 21.0, Stroke::new(1.0, BORDER), egui::StrokeKind::Inside);
-        let voci = [(Tab::Commesse, Icon::Layers, "COMMESSE"), (Tab::Fasi, Icon::Play, "FASI")];
+        // ARTICOLI moved here from the tab row (person's request)
+        let voci = [(Tab::Commesse, Icon::Layers, "COMMESSE"), (Tab::Fasi, Icon::Play, "FASI"), (Tab::Articoli, Icon::Tag, "ARTICOLI")];
         for (i, (t, ic, l)) in voci.iter().enumerate() {
             let r = Rect::from_min_size(seg.left_top() + vec2(i as f32 * 230.0 + 3.0, 3.0), vec2(224.0, 36.0));
             let on = self.tab == *t || (*t == Tab::Fasi && self.tab == Tab::Produzione);
@@ -73,6 +74,7 @@ impl Main {
                 self.tab = *t;
                 match t {
                     Tab::Fasi => self.carica_ambiente(),
+                    Tab::Articoli => self.carica_articoli(),
                     _ => self.carica_commesse(),
                 }
             }
@@ -227,6 +229,43 @@ impl Main {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if w::tile(ui, vec2(84.0, h), Some(Icon::Refresh), "", Kind::Normal, true).clicked() {
                             self.carica_articoli()
+                        }
+                    });
+                }
+                Tab::Versamenti => {
+                    let oggi = chrono::Local::now().date_naive();
+                    if w::tile(ui, vec2(bw + 40.0, h), None, "‹  GIORNO PRIMA", Kind::Normal, true).clicked() {
+                        self.giorno = self.giorno.pred_opt().unwrap_or(self.giorno);
+                        self.sc_vers.inizio();
+                        self.carica_vers_giorno();
+                    }
+                    if w::tile(ui, vec2(bw - 20.0, h), Some(Icon::Calendar), "OGGI", if self.giorno == oggi { Kind::Primary } else { Kind::Normal }, self.giorno != oggi).clicked() {
+                        self.giorno = oggi;
+                        self.sc_vers.inizio();
+                        self.carica_vers_giorno();
+                    }
+                    if w::tile(ui, vec2(bw + 40.0, h), None, "GIORNO DOPO  ›", Kind::Normal, self.giorno < oggi).clicked() {
+                        self.giorno = self.giorno.succ_opt().unwrap_or(self.giorno).min(oggi);
+                        self.sc_vers.inizio();
+                        self.carica_vers_giorno();
+                    }
+                    sep(ui, h);
+                    let miei = self.solo_miei;
+                    if w::tile(ui, vec2(bw + 20.0, h), Some(Icon::Person), if miei { "SOLO I MIEI" } else { "TUTTA LA POSTAZIONE" }, if miei { Kind::Good } else { Kind::Normal }, true).clicked() {
+                        self.solo_miei = !miei;
+                        self.sc_vers.inizio();
+                    }
+                    let (su, giu) = (self.sc_vers.puo_su(), self.sc_vers.puo_giu());
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        ui.spacing_mut().item_spacing.x = 12.0;
+                        if w::tile(ui, vec2(84.0, h), Some(Icon::Refresh), "", Kind::Normal, true).clicked() {
+                            self.carica_vers_giorno();
+                        }
+                        if w::tile(ui, vec2(84.0, h), Some(Icon::Down), "", Kind::Normal, giu).clicked() {
+                            self.sc_vers.giu();
+                        }
+                        if w::tile(ui, vec2(84.0, h), Some(Icon::Up), "", Kind::Normal, su).clicked() {
+                            self.sc_vers.su();
                         }
                     });
                 }
@@ -445,6 +484,130 @@ impl Main {
                 .collect(),
             if loading { "Caricamento…" } else { "Nessuna quantità registrata per questa fase" },
         );
+    }
+
+    /// VERSAMENTI: what was recorded in the day on this workstation's machines.
+    pub(super) fn vista_versamenti(&mut self, ui: &mut Ui) {
+        let oggi = chrono::Local::now().date_naive();
+        let mio = self.accesso.as_ref().map(|a| a.0.trim().to_string()).unwrap_or_default();
+        let nomi_mac: std::collections::HashMap<String, String> =
+            self.macchine.value.as_ref().map(|v| v.iter().map(|m| (m.cod.clone(), if m.descr.trim().is_empty() { m.cod.clone() } else { m.descr.trim().to_string() })).collect()).unwrap_or_default();
+        let tutte = self.vers_giorno.value.clone().unwrap_or_default();
+        let righe: Vec<dati::VersamentoGiorno> = tutte.into_iter().filter(|r| !self.solo_miei || r.cod_dip.eq_ignore_ascii_case(&mio)).collect();
+        let loading = self.vers_giorno.loading();
+
+        // Title + summary
+        let (tr, _) = ui.allocate_exact_size(vec2(ui.available_width(), 46.0), Sense::hover());
+        let quando = if self.giorno == oggi { "oggi".to_string() } else { self.giorno.format("%d/%m/%Y").to_string() };
+        let chi = if self.solo_miei { "i miei versamenti" } else { "tutta la postazione" };
+        ui.painter().text(tr.left_center(), Align2::LEFT_CENTER, format!("Versamenti di {quando} · {chi}"), bold(22.0), TEXT);
+        if loading {
+            ui.put(Rect::from_center_size(tr.right_center() - vec2(20.0, 0.0), vec2(26.0, 26.0)), egui::Spinner::new().size(24.0).color(PRIMARY));
+        }
+        let pezzi: f64 = righe.iter().map(|r| r.qta).sum();
+        let commesse = righe.iter().map(|r| r.commessa.as_str()).collect::<std::collections::HashSet<_>>().len();
+        let mut per_mac: Vec<(String, f64)> = Vec::new();
+        for r in &righe {
+            match per_mac.iter_mut().find(|(m, _)| *m == r.macchina) {
+                Some(x) => x.1 += r.qta,
+                None => per_mac.push((r.macchina.clone(), r.qta)),
+            }
+        }
+        let (sr, _) = ui.allocate_exact_size(vec2(ui.available_width(), 84.0), Sense::hover());
+        let p = ui.painter();
+        w::shadow(p, sr, 14, 20);
+        p.rect_filled(sr, 14.0, CARD);
+        p.rect_stroke(sr, 14.0, Stroke::new(1.0, BORDER), egui::StrokeKind::Inside);
+        let blocchi = [("PEZZI VERSATI", dati::fmt_qta(pezzi, 0)), ("REGISTRAZIONI", righe.len().to_string()), ("COMMESSE", commesse.to_string())];
+        let cw = 190.0;
+        for (i, (l, v)) in blocchi.iter().enumerate() {
+            let x = sr.left() + 22.0 + i as f32 * cw;
+            if i > 0 {
+                w::vsep(p, x - 12.0, sr.top() + 18.0, sr.bottom() - 18.0);
+            }
+            w::label_value(p, pos2(x, sr.center().y - 22.0), l, v, 26.0, PRIMARY_DARK, cw - 24.0);
+        }
+        // pieces per machine
+        let mut x = sr.left() + 22.0 + 3.0 * cw;
+        w::vsep(p, x - 12.0, sr.top() + 18.0, sr.bottom() - 18.0);
+        p.text(pos2(x, sr.top() + 16.0), Align2::LEFT_TOP, "PER MACCHINA", reg(15.0), MUTED);
+        for (m, q) in per_mac.iter() {
+            let t = format!("{}  {}", nomi_mac.get(m).cloned().unwrap_or_else(|| m.clone()), dati::fmt_qta(*q, 0));
+            let g = p.layout_no_wrap(t, bold(16.0), TEXT);
+            let r = Rect::from_min_size(pos2(x, sr.top() + 40.0), vec2(g.size().x + 20.0, 30.0));
+            if r.right() > sr.right() - 12.0 {
+                break;
+            }
+            p.rect_filled(r, 15.0, SEL_FILL);
+            p.galley(pos2(r.left() + 10.0, r.center().y - g.size().y / 2.0), g, TEXT);
+            x = r.right() + 8.0;
+        }
+        ui.add_space(10.0);
+
+        if righe.is_empty() {
+            let testo = if loading {
+                "Caricamento…"
+            } else if self.solo_miei {
+                "Nessun versamento registrato da te in questo giorno."
+            } else {
+                "Nessun versamento registrato in questo giorno sulle macchine della postazione."
+            };
+            vuoto(ui, testo, loading);
+            return;
+        }
+        // Rows (newest first), own ones highlighted
+        let col = [0.08, 0.17, 0.16, 0.2, 0.25, 0.14];
+        let head = ["Ora", "Macchina", "Operatore", "Commessa", "Articolo · fase", "Quantità"];
+        let wd = ui.available_width() - 14.0;
+        let (hr, _) = ui.allocate_exact_size(vec2(wd, 38.0), Sense::hover());
+        let p = ui.painter();
+        p.rect_filled(hr, 10.0, CARD_SOFT);
+        let mut xh = hr.left() + 16.0;
+        for (i, h) in head.iter().enumerate() {
+            p.text(pos2(xh, hr.center().y), Align2::LEFT_CENTER, *h, bold(15.0), MUTED);
+            xh += col[i] * (wd - 32.0);
+        }
+        self.sc_vers.pagina = 5.0 * 66.0;
+        let out = self.sc_vers.area("versamenti").show(ui, |ui| {
+            ui.spacing_mut().item_spacing.y = 6.0;
+            for r in &righe {
+                let (rr, _) = ui.allocate_exact_size(vec2(wd, 60.0), Sense::hover());
+                if !ui.is_rect_visible(rr) {
+                    continue;
+                }
+                let p = ui.painter();
+                let mia = !mio.is_empty() && r.cod_dip.eq_ignore_ascii_case(&mio);
+                p.rect_filled(rr, 10.0, if mia { lerp(GOOD, Color32::WHITE, 0.9) } else { CARD });
+                p.rect_stroke(rr, 10.0, Stroke::new(1.0, if mia { lerp(GOOD, Color32::WHITE, 0.5) } else { BORDER }), egui::StrokeKind::Inside);
+                let mut x = rr.left() + 16.0;
+                let top = rr.center().y - 11.0;
+                let bot = rr.center().y + 12.0;
+                let cw = |i: usize| col[i] * (wd - 32.0);
+                // ora
+                p.text(pos2(x, rr.center().y), Align2::LEFT_CENTER, r.quando.map(|d| d.format("%H:%M").to_string()).unwrap_or_default(), bold(19.0), TEXT);
+                x += cw(0);
+                // macchina
+                let m = nomi_mac.get(&r.macchina).cloned().unwrap_or_else(|| r.macchina.clone());
+                p.text(pos2(x, rr.center().y), Align2::LEFT_CENTER, w::elide(p, &m, reg(17.0), cw(1) - 12.0), reg(17.0), TEXT);
+                x += cw(1);
+                // operatore
+                let op = if r.operatore.is_empty() { r.cod_dip.clone() } else { r.operatore.clone() };
+                p.text(pos2(x, rr.center().y), Align2::LEFT_CENTER, w::elide(p, &op, if mia { bold(17.0) } else { reg(17.0) }, cw(2) - 12.0), if mia { bold(17.0) } else { reg(17.0) }, if mia { GOOD_DARK } else { TEXT });
+                x += cw(2);
+                // commessa + gruppo
+                p.text(pos2(x, top), Align2::LEFT_CENTER, &r.commessa, bold(18.0), TEXT);
+                p.text(pos2(x, bot), Align2::LEFT_CENTER, format!("R {}", r.gruppo), reg(14.0), MUTED);
+                x += cw(3);
+                // articolo + fase
+                p.text(pos2(x, top), Align2::LEFT_CENTER, w::elide(p, &r.codart, reg(16.0), cw(4) - 12.0), reg(16.0), TEXT);
+                let fase = format!("fase {} {} · {}", r.fase, r.fase_descr, r.operazione);
+                p.text(pos2(x, bot), Align2::LEFT_CENTER, w::elide(p, &fase, reg(14.0), cw(4) - 12.0), reg(14.0), MUTED);
+                x += cw(4);
+                // quantità
+                p.text(pos2(x, rr.center().y), Align2::LEFT_CENTER, format!("{} {}", dati::fmt_qta(r.qta, r.ndec), r.um), bold(20.0), PRIMARY_DARK);
+            }
+        });
+        self.sc_vers.leggi(&out);
     }
 
     pub(super) fn vista_articoli(&mut self, ui: &mut Ui) {
